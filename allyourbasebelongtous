@@ -1,0 +1,79 @@
+#!/bin/sh
+
+volume=$(cat /etc/fstab | grep $USER | awk '{print $1}')
+url=$(cat ~/url)
+width=$(cat ~/width)
+height=$(cat ~/height)
+framerate=$(cat ~/framerate)
+
+dir="/home/$USER/vid/"
+cd $dir
+
+touch test
+if [ "$?" -ne 0 ] 
+then
+	sudo sendsms "filesystem error $USER $? could not create test file on $volume"
+	exit 1
+else
+	rm test
+fi
+
+recorder () {
+	local rc=1
+	local ec=0
+	while [ "$rc" -ne 0 -a "$ec" -le 10 ]
+	do
+		if [ "$ec" -ge 2 ]
+		then
+			sleep 30
+		fi
+		NOW=`date +%y%m%d%H%M%S`
+#		DIR=`date +%y%m%d`
+		#%H
+#		if [ ! -d "./$DIR" ]
+#		then
+#			mkdir ./$DIR
+#		fi
+#		then
+#		if [ $(df -h | grep $volume | nawk '{print $5+0}') -ge 97 ]
+		if [ $(ls | wc -l) -ge 25 ]
+		then
+			rm -rf "$(find ./ -maxdepth 1 -type f | sort -n | head -n 2 | tail -1)"
+		fi
+		openRTSP -v -q -d 3620 -D 5 -w $width -h $height -f $framerate $url > $dir/$NOW.mov
+		rc="$?"
+		if [ "$rc" -ne 0 ]
+		then
+			ec=$((ec +1))
+			if [ "$ec" -ge 11 ]
+			then
+				sudo sendsms "too many rtsp errors, hourly recording service for $USER aborting on $(date)"
+#			else
+#				sudo sendsms "rtsp $ec err(s) $USER code $rc"
+			fi
+		fi
+	done
+}	
+
+while true
+do
+	previous_pid=$(ps -o pid= -C openRTSP)
+	
+	recorder &
+	
+	if [ -z "$previous_pid" ] 
+	then
+		sudo sendsms "no previous pid found for openRTSP processes, launched $USER"
+	else 
+		{ sleep 11;	
+			for i in  $previous_pid
+			do
+				if [ "$i" != "$$" -a "$(ps -p $i -o ruser=)" = "$USER" ]
+				then
+					 kill -1 $i
+				fi
+			done
+		} & 
+	fi
+	sleep 3600
+done
