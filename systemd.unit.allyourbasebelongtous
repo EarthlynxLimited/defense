@@ -1,0 +1,16 @@
+[Unit]
+Description=template unit for rtsp recording
+After=network.target
+
+[Service]
+Type=simple
+User=parking
+Group=parking
+ExecStart=/usr/local/bin/rtsp_pizza.sh
+#ExecStop=/usr/local/bin/cleanrtsp.sh
+KillSignal=SIGHUP
+SendSIGHUP=yes
+TimeoutStopSec=20
+Restart=always
+[Install]
+WantedBy=multi-user.target
